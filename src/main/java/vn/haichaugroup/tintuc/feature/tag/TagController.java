@@ -1,0 +1,79 @@
+package vn.haichaugroup.tintuc.feature.tag;
+
+import jakarta.validation.Valid;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import vn.haichaugroup.tintuc.dto.ApiResponse;
+import vn.haichaugroup.tintuc.dto.ResultPaginationDTO;
+import vn.haichaugroup.tintuc.feature.article.ArticleService;
+import vn.haichaugroup.tintuc.feature.tag.dto.CreateTagRequest;
+import vn.haichaugroup.tintuc.feature.tag.dto.TagFilterRequest;
+import vn.haichaugroup.tintuc.feature.tag.dto.TagResponse;
+import vn.haichaugroup.tintuc.feature.tag.dto.UpdateTagRequest;
+
+import java.net.URI;
+
+@RestController
+@RequestMapping("/api/v1/tags")
+public class TagController {
+
+    private final TagService tagService;
+    private final ArticleService articleService;
+
+    public TagController(TagService tagService, ArticleService articleService) {
+        this.tagService = tagService;
+        this.articleService = articleService;
+    }
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<ResultPaginationDTO>> filter(
+            @ParameterObject TagFilterRequest filter,
+            @ParameterObject Pageable pageable) {
+        ResultPaginationDTO result = tagService.filter(filter, pageable);
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách tag thành công", result));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<TagResponse>> getById(@PathVariable Long id) {
+        TagResponse response = tagService.getById(id);
+        return ResponseEntity.ok(ApiResponse.success("Lấy thông tin tag thành công", response));
+    }
+
+    @GetMapping("/{id}/articles")
+    public ResponseEntity<ApiResponse<ResultPaginationDTO>> getArticlesByTag(
+            @PathVariable Long id,
+            @ParameterObject Pageable pageable) {
+        ResultPaginationDTO result = articleService.getArticlesByTag(id, pageable);
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách bài viết theo tag thành công", result));
+    }
+
+    @PostMapping
+    public ResponseEntity<ApiResponse<TagResponse>> create(@Valid @RequestBody CreateTagRequest request) {
+        TagResponse response = tagService.create(request);
+        URI location = URI.create("/api/v1/tags/" + response.id());
+        return ResponseEntity.created(location)
+                .body(ApiResponse.created("Tạo tag thành công", response));
+    }
+
+    @PutMapping
+    public ResponseEntity<ApiResponse<TagResponse>> update(@Valid @RequestBody UpdateTagRequest request) {
+        TagResponse response = tagService.update(request);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật tag thành công", response));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+        tagService.delete(id);
+        return ResponseEntity.ok(ApiResponse.success("Xóa tag thành công", null));
+    }
+}

@@ -1,0 +1,228 @@
+package vn.haichaugroup.tintuc.exception;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+
+import org.springframework.security.authorization.AuthorizationDeniedException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.dao.DataIntegrityViolationException;
+
+import vn.haichaugroup.tintuc.dto.ApiResponse;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+        private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+        // ========== CUSTOM EXCEPTIONS ==========
+
+        @ExceptionHandler(InvalidTokenException.class)
+        public ResponseEntity<ApiResponse<Void>> handleInvalidToken(InvalidTokenException ex) {
+                log.warn("InvalidTokenException: {}", ex.getMessage());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                .body(ApiResponse.unauthorized(ex.getMessage()));
+        }
+
+        @ExceptionHandler(BadCredentialsException.class)
+        public ResponseEntity<ApiResponse<Void>> handleBadCredentials(BadCredentialsException ex) {
+                log.warn("BadCredentialsException: {}", ex.getMessage());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                .body(ApiResponse.unauthorized("Email hoặc mật khẩu không đúng"));
+        }
+
+        @ExceptionHandler(DisabledException.class)
+        public ResponseEntity<ApiResponse<Void>> handleDisabledException(DisabledException ex) {
+                log.warn("DisabledException: {}", ex.getMessage());
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                .body(ApiResponse.ofError(403, "Tài khoản của bạn đã bị ngừng hoạt động. Vui lòng liên hệ quản trị viên.", "Forbidden"));
+        }
+
+        @ExceptionHandler({AccessDeniedException.class, AuthorizationDeniedException.class})
+        public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(Exception ex) {
+                log.warn("AccessDeniedException: {}", ex.getMessage());
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                .body(ApiResponse.ofError(403, ex.getMessage(), "Forbidden - Bạn không có quyền truy cập chức năng này"));
+        }
+
+        @ExceptionHandler(FileUploadException.class)
+        public ResponseEntity<ApiResponse<Void>> handleFileUpload(FileUploadException ex) {
+                log.warn("FileUploadException: {}", ex.getMessage());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(ApiResponse.badRequest(ex.getMessage()));
+        }
+
+        @ExceptionHandler(BadRequestException.class)
+        public ResponseEntity<ApiResponse<Void>> handleBadRequest(BadRequestException ex) {
+                log.warn("BadRequestException: {}", ex.getMessage());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(ApiResponse.badRequest(ex.getMessage()));
+        }
+
+        @ExceptionHandler(ResourceNotFoundException.class)
+        public ResponseEntity<ApiResponse<Void>> handleResourceNotFound(ResourceNotFoundException ex) {
+                log.warn("ResourceNotFoundException: {}", ex.getMessage());
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                                .body(ApiResponse.notFound(ex.getMessage()));
+        }
+
+        @ExceptionHandler(DuplicateResourceException.class)
+        public ResponseEntity<ApiResponse<Void>> handleDuplicateResource(DuplicateResourceException ex) {
+                log.warn("DuplicateResourceException: {}", ex.getMessage());
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                                .body(ApiResponse.conflict(ex.getMessage()));
+        }
+
+        @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+        public ResponseEntity<ApiResponse<Void>> handleMaxSizeException(org.springframework.web.multipart.MaxUploadSizeExceededException exc) {
+                log.warn("MaxUploadSizeExceededException: {}", exc.getMessage());
+                return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                                .body(ApiResponse.badRequest("Kích thước file hoặc tổng request vượt quá giới hạn cho phép (File < 5MB, Tổng < 10MB)"));
+        }
+
+        @ExceptionHandler(org.springframework.web.multipart.MultipartException.class)
+        public ResponseEntity<ApiResponse<Void>> handleMultipartException(org.springframework.web.multipart.MultipartException exc) {
+                log.warn("MultipartException: {}", exc.getMessage());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(ApiResponse.badRequest("Lỗi xử lý file đính kèm. Vui lòng kiểm tra lại định dạng gửi (chọn đúng multipart/form-data)"));
+        }
+
+        // ========== SPRING MVC EXCEPTIONS ==========
+
+        @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+        public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+                log.warn("MethodArgumentTypeMismatchException: tham số '{}' nhận giá trị '{}'không hợp lệ",
+                                ex.getName(), ex.getValue());
+                String message = String.format("Tham số '%s' có giá trị '%s' không hợp lệ, kiểu dữ liệu yêu cầu: %s",
+                                ex.getName(), ex.getValue(),
+                                ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "không xác định");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(ApiResponse.badRequest(message));
+        }
+
+        @ExceptionHandler(HttpMessageNotReadableException.class)
+        public ResponseEntity<ApiResponse<Void>> handleNotReadable(HttpMessageNotReadableException ex) {
+                log.warn("HttpMessageNotReadableException: {}", ex.getMessage());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(ApiResponse.badRequest("Request body không hợp lệ hoặc bị thiếu"));
+        }
+
+        @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+        public ResponseEntity<ApiResponse<Void>> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex) {
+                log.warn("HttpMediaTypeNotSupportedException: content-type '{}' không được hỗ trợ", ex.getContentType());
+                String message = String.format("Content-Type '%s' không được hỗ trợ cho endpoint này",
+                                ex.getContentType());
+                return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                                .body(ApiResponse.ofError(415, message, "Unsupported Media Type"));
+        }
+
+        @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+        public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+                log.warn("HttpRequestMethodNotSupportedException: method '{}' không được hỗ trợ", ex.getMethod());
+                String message = String.format("Phương thức HTTP '%s' không được hỗ trợ cho endpoint này",
+                                ex.getMethod());
+                return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                                .body(ApiResponse.ofError(405, message, "Method Not Allowed"));
+        }
+
+        @ExceptionHandler(NoHandlerFoundException.class)
+        public ResponseEntity<ApiResponse<Void>> handleNoHandlerFound(NoHandlerFoundException ex) {
+                log.warn("NoHandlerFoundException: không tìm thấy endpoint '{}' '{}'",
+                                ex.getHttpMethod(), ex.getRequestURL());
+                String message = String.format("Không tìm thấy endpoint '%s %s'",
+                                ex.getHttpMethod(), ex.getRequestURL());
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                                .body(ApiResponse.notFound(message));
+        }
+
+        @ExceptionHandler(MethodArgumentNotValidException.class)
+        public ResponseEntity<ApiResponse<Object>> handleValidationException(
+                        MethodArgumentNotValidException ex) {
+
+                List<String> errors = ex.getBindingResult()
+                                .getFieldErrors()
+                                .stream()
+                                .map(this::formatFieldError)
+                                .collect(Collectors.toList());
+
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                                ApiResponse.badRequest("Dữ liệu không hợp lệ", errors));
+        }
+
+        private String formatFieldError(FieldError fieldError) {
+                return fieldError.getDefaultMessage();
+        }
+
+        @ExceptionHandler(IllegalArgumentException.class)
+        public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
+                log.warn("IllegalArgumentException: {}", ex.getMessage());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(ApiResponse.badRequest(ex.getMessage()));
+        }
+
+        @ExceptionHandler(IllegalStateException.class)
+        public ResponseEntity<ApiResponse<Void>> handleIllegalState(IllegalStateException ex) {
+                log.warn("IllegalStateException: {}", ex.getMessage());
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                                .body(ApiResponse.conflict(ex.getMessage()));
+        }
+
+        @ExceptionHandler(DataIntegrityViolationException.class)
+        public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+                log.warn("DataIntegrityViolationException: {}", ex.getMessage());
+                String message = "Không thể thực hiện thao tác do dữ liệu đang được liên kết hoặc sử dụng ở nơi khác.";
+                if (ex.getCause() != null && ex.getCause().getCause() != null) {
+                    String rootMsg = ex.getCause().getCause().getMessage();
+                    if (rootMsg != null && rootMsg.contains("a foreign key constraint fails")) {
+                        message = "Không thể xóa bản ghi này vì nó đang được sử dụng ở các dữ liệu khác.";
+                    } else if (rootMsg != null && rootMsg.contains("Duplicate entry")) {
+                        message = "Dữ liệu bị trùng lặp, vui lòng kiểm tra lại.";
+                    }
+                }
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                                .body(ApiResponse.conflict(message));
+        }
+
+        /**
+         * {@link ResponseStatusException} (502/503 từ tích hợp VNPT, v.v.) — không được nuốt bởi
+         * {@link #handleGeneral(Exception)} thành 500.
+         */
+        @ExceptionHandler(ResponseStatusException.class)
+        public ResponseEntity<ApiResponse<Void>> handleResponseStatus(ResponseStatusException ex) {
+                HttpStatusCode status = ex.getStatusCode();
+                int code = status.value();
+                String reason = ex.getReason() != null ? ex.getReason() : ex.getMessage();
+                log.warn("ResponseStatusException {}: {}", code, reason);
+                HttpStatus resolved = HttpStatus.resolve(code);
+                String error = resolved != null ? resolved.getReasonPhrase() : ("HTTP " + code);
+                return ResponseEntity.status(status)
+                                .body(ApiResponse.ofError(code, reason, error));
+        }
+
+        // ========== CATCH-ALL ==========
+
+        @ExceptionHandler(Exception.class)
+        public ResponseEntity<ApiResponse<Void>> handleGeneral(Exception ex) {
+                log.error("Unexpected exception: {}", ex.getMessage(), ex);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .body(ApiResponse.error("Đã xảy ra lỗi hệ thống, vui lòng thử lại sau"));
+        }
+}

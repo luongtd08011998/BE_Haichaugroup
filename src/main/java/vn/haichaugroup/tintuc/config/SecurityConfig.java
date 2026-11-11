@@ -1,0 +1,206 @@
+package vn.haichaugroup.tintuc.config;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.util.Arrays;
+
+import org.springframework.core.annotation.Order;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.util.matcher.RegexRequestMatcher;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import vn.haichaugroup.tintuc.dto.ApiResponse;
+import vn.haichaugroup.tintuc.security.PermissionAuthorizationManager;
+
+@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity
+public class SecurityConfig {
+
+    private final PermissionAuthorizationManager permissionAuthorizationManager;
+
+    public SecurityConfig(PermissionAuthorizationManager permissionAuthorizationManager) {
+        this.permissionAuthorizationManager = permissionAuthorizationManager;
+
+    }
+
+    private static final String[] WHITELIST = {
+            "/v3/api-docs/**",
+            "/swagger-ui/**",
+            "/swagger-ui.html",
+            "/api/v1/auth/login",
+            "/api/v1/auth/register",
+            "/api/v1/auth/refresh",
+            "/api/v1/dashboard",
+            "/uploads/**",
+            "/api/v1/qlkh/auth/login",
+            "/api/v1/qlkh/auth/refresh",
+            "/api/v1/qlkh/auth/logout",
+            "/api/v1/qlkh/month-invoices/**",
+            "/api/v1/qlkh/customer/auth/login",
+            "/api/v1/qlkh/customer/articles/**",
+            "/api/v1/auth/me"
+    };
+
+    @Bean
+    @Order(0)
+    SecurityFilterChain externalApiKeyChain(HttpSecurity http, 
+            @org.springframework.beans.factory.annotation.Value("${app.api-key}") String apiKey) throws Exception {
+        http
+            .securityMatcher("/api/v1/external/**")
+            .csrf(csrf -> csrf.disable())
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .addFilterBefore(new vn.haichaugroup.tintuc.config.ApiKeyAuthFilter(apiKey), 
+                org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
+            .authorizeHttpRequests(auth -> auth.anyRequest().authenticated());
+        return http.build();
+    }
+
+    @Bean
+    CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOriginPatterns(Arrays.asList(
+                "http://localhost:*",
+                "http://127.0.0.1:*",
+                "http://125.253.121.171:*",
+                "https://125.253.121.171:*",
+                "http://125.253.121.171",
+                "https://125.253.121.171",
+                "http://*.haichaugroup.vn:*",
+                "https://*.haichaugroup.vn:*",
+                "http://haichaugroup.vn:*",
+                "https://haichaugroup.vn:*",
+                "http://*.haichaugroup.vn",
+                "https://*.haichaugroup.vn",
+                "http://haichaugroup.vn",
+                "https://haichaugroup.vn",
+                "*"));
+
+        configuration.setAllowedMethods(
+                Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+
+        configuration.setAllowedHeaders(
+                Arrays.asList("Authorization", "Content-Type", "Cache-Control"));
+
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
+
+    /**
+     * Các route QLKH công khai — không gắn OAuth2 JWT.
+     * Nếu dùng chung chuỗi có {@code oauth2ResourceServer().jwt()}, Bearer token cũ/sai vẫn bị Jwt filter
+     * xử lý → 401 dù {@code permitAll} trên cùng URL.
+     */
+    @Bean
+    @Order(1)
+    SecurityFilterChain qlkhPublicNoJwtChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher(
+                        "/api/v1/qlkh/auth/login",
+                        "/api/v1/qlkh/auth/refresh",
+                        "/api/v1/qlkh/auth/logout",
+                        "/api/v1/qlkh/month-invoices/**",
+                        "/api/v1/qlkh/customer/auth/login",
+                        "/api/v1/qlkh/customer/articles/**"
+                )
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
+    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(WHITELIST).permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/articles/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/categories/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/tags/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/media/**").permitAll()
+                        // TODO: Xóa sau khi test xong tích hợp Paybill QR
+                        .requestMatchers(HttpMethod.POST, "/api/v1/qlkh/paybill/qr").permitAll()
+
+                        .requestMatchers(new RegexRequestMatcher("^/api/v1/articles/slug/[^/]+/view$", "POST"))
+                                .permitAll()
+                        .requestMatchers("/api/v1/qlkh/customers/me").authenticated()
+                        .requestMatchers("/api/v1/qlkh/invoices", "/api/v1/qlkh/invoices/**").authenticated()
+                        .requestMatchers("/api/v1/qlkh/vnpt/**").authenticated()
+                        .requestMatchers("/api/v1/qlkh/sales-invoices", "/api/v1/qlkh/sales-invoices/**")
+                                .authenticated()
+                        .requestMatchers("/api/v1/admin/logs").authenticated()
+                        .requestMatchers("/api/v1/media/folders", "/api/v1/media/folders/**", "/api/v1/media/move").authenticated()
+                        .requestMatchers("/api/v1/auth/logout").authenticated()
+                        .anyRequest().access(permissionAuthorizationManager))
+
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {
+                }))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authenticationEntryPoint())
+                        .accessDeniedHandler(accessDeniedHandler()));
+
+        return http.build();
+    }
+
+    @Bean
+    AuthenticationEntryPoint authenticationEntryPoint() {
+        return (request, response, authException) -> {
+            response.setStatus(HttpStatus.UNAUTHORIZED.value());
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            response.setCharacterEncoding("UTF-8");
+
+            ApiResponse<Void> body = ApiResponse.unauthorized("Token không hợp lệ hoặc đã hết hạn");
+            ObjectMapper mapper = new ObjectMapper();
+            response.getWriter().write(mapper.writeValueAsString(body));
+        };
+    }
+
+    @Bean
+    AccessDeniedHandler accessDeniedHandler() {
+        return (request, response, accessDeniedException) -> {
+            response.setStatus(HttpStatus.FORBIDDEN.value());
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            response.setCharacterEncoding("UTF-8");
+
+            ApiResponse<Void> body = ApiResponse.forbidden("Bạn không có quyền truy cập tài nguyên này");
+            ObjectMapper mapper = new ObjectMapper();
+            response.getWriter().write(mapper.writeValueAsString(body));
+        };
+    }
+
+    @Bean
+    PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
+    }
+}

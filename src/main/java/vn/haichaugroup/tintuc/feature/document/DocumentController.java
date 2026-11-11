@@ -1,0 +1,77 @@
+package vn.haichaugroup.tintuc.feature.document;
+
+import jakarta.validation.Valid;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import vn.haichaugroup.tintuc.dto.ApiResponse;
+import vn.haichaugroup.tintuc.dto.ResultPaginationDTO;
+import vn.haichaugroup.tintuc.feature.document.dto.CreateDocumentRequest;
+import vn.haichaugroup.tintuc.feature.document.dto.DocumentFilterRequest;
+import vn.haichaugroup.tintuc.feature.document.dto.DocumentResponse;
+import vn.haichaugroup.tintuc.feature.document.dto.UpdateDocumentRequest;
+
+import java.net.URI;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/v1/documents")
+public class DocumentController {
+
+    private final DocumentService documentService;
+
+    public DocumentController(DocumentService documentService) {
+        this.documentService = documentService;
+    }
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<ResultPaginationDTO>> filter(
+            @ParameterObject DocumentFilterRequest filter,
+            @ParameterObject Pageable pageable) {
+        ResultPaginationDTO result = documentService.filter(filter, pageable);
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách tài liệu thành công", result));
+    }
+
+    @GetMapping("/article/{articleId}")
+    public ResponseEntity<ApiResponse<List<DocumentResponse>>> getByArticleId(@PathVariable Long articleId) {
+        List<DocumentResponse> result = documentService.getByArticleId(articleId);
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách tài liệu theo bài viết thành công", result));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<DocumentResponse>> getById(@PathVariable Long id) {
+        DocumentResponse response = documentService.getById(id);
+        return ResponseEntity.ok(ApiResponse.success("Lấy thông tin tài liệu thành công", response));
+    }
+
+    @PostMapping
+    public ResponseEntity<ApiResponse<DocumentResponse>> create(
+            @Valid @RequestBody CreateDocumentRequest request) {
+        DocumentResponse response = documentService.create(request);
+        URI location = URI.create("/api/v1/documents/" + response.id());
+        return ResponseEntity.created(location)
+                .body(ApiResponse.created("Tạo tài liệu thành công", response));
+    }
+
+    @PutMapping
+    public ResponseEntity<ApiResponse<DocumentResponse>> update(
+            @Valid @RequestBody UpdateDocumentRequest request) {
+        DocumentResponse response = documentService.update(request);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật tài liệu thành công", response));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+        documentService.delete(id);
+        return ResponseEntity.ok(ApiResponse.success("Xóa tài liệu thành công", null));
+    }
+}

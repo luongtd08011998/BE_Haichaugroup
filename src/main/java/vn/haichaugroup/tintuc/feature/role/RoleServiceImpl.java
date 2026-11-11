@@ -1,0 +1,129 @@
+package vn.haichaugroup.tintuc.feature.role;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
+import vn.haichaugroup.tintuc.dto.ResultPaginationDTO;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import vn.haichaugroup.tintuc.exception.DuplicateResourceException;
+import vn.haichaugroup.tintuc.exception.ResourceNotFoundException;
+import vn.haichaugroup.tintuc.feature.permission.Permission;
+import vn.haichaugroup.tintuc.feature.permission.PermissionRepository;
+import org.springframework.data.jpa.domain.Specification;
+import vn.haichaugroup.tintuc.feature.role.dto.CreateRoleRequest;
+import vn.haichaugroup.tintuc.feature.role.dto.RoleFilterRequest;
+import vn.haichaugroup.tintuc.feature.role.dto.RoleResponse;
+import vn.haichaugroup.tintuc.feature.role.dto.UpdateRoleRequest;
+import vn.haichaugroup.tintuc.security.PermissionAuthorizationManager;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+@Service
+public class RoleServiceImpl implements RoleService {
+
+    private final RoleRepository roleRepository;
+    private final PermissionRepository permissionRepository;
+    private final PermissionAuthorizationManager permissionAuthorizationManager;
+
+    public RoleServiceImpl(RoleRepository roleRepository,
+            PermissionRepository permissionRepository,
+            PermissionAuthorizationManager permissionAuthorizationManager) {
+        this.roleRepository = roleRepository;
+        this.permissionRepository = permissionRepository;
+        this.permissionAuthorizationManager = permissionAuthorizationManager;
+    }
+
+    @Override
+    @Transactional
+    public RoleResponse create(CreateRoleRequest request) {
+        if (roleRepository.existsByName(request.name())) {
+            throw new DuplicateResourceException("Vai trò", "name", request.name());
+        }
+
+        List<Permission> permissions = resolvePermissions(request.permissionIds());
+
+        Role role = new Role();
+        role.setName(request.name());
+        role.setDescription(request.description());
+        role.setPermissions(permissions);
+
+        Role saved = roleRepository.save(role);
+        permissionAuthorizationManager.loadCache();
+        return RoleResponse.fromEntity(saved);
+    }
+
+    @Override
+    @Transactional
+    public RoleResponse update(UpdateRoleRequest request) {
+        Role role = roleRepository.findById(request.id())
+                .orElseThrow(() -> new ResourceNotFoundException("Vai trò", "id", request.id()));
+
+        if (roleRepository.existsByNameAndIdNot(request.name(), request.id())) {
+            throw new DuplicateResourceException("Vai trò", "name", request.name());
+        }
+
+        List<Permission> permissions = resolvePermissions(request.permissionIds());
+
+        role.setName(request.name());
+        role.setDescription(request.description());
+        role.setPermissions(permissions);
+
+        Role saved = roleRepository.save(role);
+        permissionAuthorizationManager.loadCache();
+        return RoleResponse.fromEntity(saved);
+    }
+
+    @Override
+    @Transactional
+    public RoleResponse getById(Long id) {
+        Role role = roleRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Vai trò", "id", id));
+        return RoleResponse.fromEntity(role);
+    }
+
+    @Override
+    @Transactional
+    public ResultPaginationDTO filter(RoleFilterRequest filter, Pageable pageable) {
+        Specification<Role> spec = RoleSpecification.build(filter);
+        Page<RoleResponse> pageResult = roleRepository.findAll(spec, pageable)
+                .map(RoleResponse::fromEntity);
+        return ResultPaginationDTO.fromPage(pageResult);
+    }
+
+    @Override
+    @Transactional
+    public void delete(Long id) {
+        if (!roleRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Vai trò", "id", id);
+        }
+        roleRepository.deleteById(id);
+        permissionAuthorizationManager.loadCache();
+    }
+
+    private List<Permission> resolvePermissions(List<Long> permissionIds) {
+        if (permissionIds == null || permissionIds.isEmpty()) {
+            return new ArrayList<>(); // mutable — Hibernate có thể thao tác được
+        }
+
+        List<Long> uniqueIds = permissionIds.stream().distinct().toList();
+        List<Permission> found = permissionRepository.findAllById(uniqueIds);
+
+        if (found.size() != uniqueIds.size()) {
+            Set<Long> foundIds = found.stream()
+                    .map(Permission::getId)
+                    .collect(Collectors.toSet());
+            Long missingId = uniqueIds.stream()
+                    .filter(id -> !foundIds.contains(id))
+                    .findFirst()
+                    .orElseThrow();
+            throw new ResourceNotFoundException("Quyền hạn", "id", missingId);
+        }
+
+        return found;
+    }
+}

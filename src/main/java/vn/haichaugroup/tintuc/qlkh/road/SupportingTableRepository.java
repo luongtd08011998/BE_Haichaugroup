@@ -1,0 +1,17 @@
+package vn.haichaugroup.tintuc.qlkh.road;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.stereotype.Repository;
+import vn.haichaugroup.tintuc.qlkh.road.dto.RoadDropdownResponse;
+import vn.haichaugroup.tintuc.qlkh.road.entity.SupportingTable;
+
+import java.util.List;
+
+@Repository
+public interface SupportingTableRepository extends JpaRepository<SupportingTable, Integer> {
+
+    @Query("SELECT new vn.haichaugroup.tintuc.qlkh.road.dto.RoadDropdownResponse(s.supportingTableId, s.name, s.type) " +
+           "FROM SupportingTable s WHERE s.supportingTableTypeId = 2 AND (s.isActive = 1 OR s.isActive IS NULL) ORDER BY s.name ASC")
+    List<RoadDropdownResponse> findActiveRoads();
+}

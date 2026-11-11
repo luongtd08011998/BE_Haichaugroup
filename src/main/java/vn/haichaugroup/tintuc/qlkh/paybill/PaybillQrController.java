@@ -1,0 +1,28 @@
+package vn.haichaugroup.tintuc.qlkh.paybill;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import vn.haichaugroup.tintuc.qlkh.paybill.dto.CreateQrRequest;
+import vn.haichaugroup.tintuc.qlkh.paybill.dto.PaybillQrResult;
+import vn.haichaugroup.tintuc.dto.ApiResponse;
+
+@RestController
+@RequestMapping("/api/v1/qlkh/paybill")
+public class PaybillQrController {
+
+    private final PaybillQrService paybillQrService;
+
+    public PaybillQrController(PaybillQrService paybillQrService) {
+        this.paybillQrService = paybillQrService;
+    }
+
+    @PostMapping("/qr")
+    public ResponseEntity<ApiResponse<PaybillQrResult>> createQrCode(@RequestBody CreateQrRequest payload) {
+        if (payload.getDigiCode() == null || payload.getDigiCode().trim().isEmpty() || 
+            payload.getMonthInvoiceIds() == null || payload.getMonthInvoiceIds().isEmpty()) {
+            throw new IllegalArgumentException("Thiếu tham số digiCode hoặc monthInvoiceIds");
+        }
+        PaybillQrResult result = paybillQrService.createQrCode(payload.getDigiCode(), payload.getMonthInvoiceIds());
+        return ResponseEntity.ok(ApiResponse.success("Tạo mã QR thành công", result));
+    }
+}

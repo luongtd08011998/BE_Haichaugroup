@@ -1,0 +1,117 @@
+spring:
+  application:
+    name: haichau-tintuc
+  data:
+    web:
+      pageable:
+        one-indexed-parameters: true
+  datasource:
+    primary:
+      jdbc-url: jdbc:mysql://localhost:3306/haichau_new?allowPublicKeyRetrieval=true&useSSL=false
+      username: root
+      password: 1234
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      hikari:
+        maximum-pool-size: 20
+        minimum-idle: 5
+        connection-timeout: 30000
+        idle-timeout: 600000
+        max-lifetime: 1800000
+        leak-detection-threshold: 60000s
+    # DB thứ 2 (QLKH legacy — customer / monthinvoice / payment). Xem docs/decisions/databaseqlkh.md
+    qlkh:
+      jdbc-url: jdbc:mysql://103.110.128.176:3306/cm_20211018?allowPublicKeyRetrieval=true&useSSL=false&characterEncoding=UTF-8
+      username: luongtd
+      password: 1234
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      hikari:
+        maximum-pool-size: 10
+        minimum-idle: 3
+        connection-timeout: 30000
+        idle-timeout: 600000
+        max-lifetime: 1800000
+        leak-detection-threshold: 60000
+    # qlkh:
+    #   jdbc-url: jdbc:mysql://localhost:3306/cm_20211018?allowPublicKeyRetrieval=true&useSSL=false&characterEncoding=UTF-8
+    #   username: root
+    #   password: 1234
+    #   driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 15MB
+
+jwt:
+  secret: haichaugroupjwtsecretkeyHS256haichaugroupjwtsecretkeyHS256haichau
+  access-token-expiration: 35000000
+  refresh-expiration: 604800000
+  # Refresh Token cho QLKH — 30 ngày
+  qlkh-refresh-token-expiration: 5550400000
+
+app:
+  base-url: https://haichaugroup.vn/news
+  upload:
+    base-dir: ./uploads
+    max-file-size: 10485760
+    allowed-extensions:
+      - jpg
+      - jpeg
+      - png
+      - gif
+      - webp
+      - pdf
+      - doc
+      - docx
+      - xls
+      - xlsx
+      - csv
+      - zip
+      - txt
+    allowed-folders:
+      - avatars
+      - logos
+      - thumbnails
+      - media
+  seed-data: true
+  company-name: "HAICHAUGROUP"
+  hotline: "02543 894 894"
+  api-key: ${QR_API_KEY:haichaugroup}
+
+# ── VietQR Payment ──
+vietqr:
+  base-url: https://img.vietqr.io/image
+  bank-id: "970415"
+  account-no: "113601145666"
+  account-name: "CONG TY TNHH CAP NUOC TOC TIEN"
+  template: "tY8MBU9"
+  add-info-prefix: "TOCTIEN"
+
+# VNPT PortalService — SOAP downloadInvErrorFkey (xem news-site/docs/APIFKEY.md).
+# Cấu hình qua biến môi trường (xem .env.example). Map TVAN thường gặp: UserName→VNPT_PORTAL_USERNAME,
+# Password→VNPT_PORTAL_PASSWORD; Account/Acpass thường là kênh khác — xác nhận với VNPT nếu SOAP báo ERR:1.
+vnpt:
+  portal:
+    service-url: ${VNPT_PORTAL_SERVICE_URL:}
+    username: ${VNPT_PORTAL_USERNAME:}
+    password: ${VNPT_PORTAL_PASSWORD:}
+
+server:
+  port: 8080
+
+springdoc:
+  swagger-ui:
+    #lưu token vào Local Storage
+    persist-authorization: true
+    enabled: true
+
+# ── VietUnion Paybill QR ──
+paybill:
+  base-url: ${PAYBILL_BASE_URL:https://biller.payoo.vn:9443}
+  biller-code: ${PAYBILL_BILLER_CODE:CNTOCTIEN}
+  service-code: ${PAYBILL_SERVICE_CODE:NUOC}
+  password: ${PAYBILL_PASSWORD:bP55flRB5BIhVyo6}
+  skip-ssl-verify: ${PAYBILL_SKIP_SSL:false}
